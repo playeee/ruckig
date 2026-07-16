@@ -14,11 +14,27 @@
 
 namespace ruckig {
 
+/**
+ * @brief 控制接口类型枚举
+ *
+ * 决定 Ruckig 控制哪些运动学状态。
+ * - Position（位置控制）：控制位置、速度、加速度，为默认选项
+ * - Velocity（速度控制）：仅控制速度和加速度，忽略位置信息
+ */
 enum class ControlInterface {
     Position, ///< Position-control: Full control over the entire kinematic state (Default)
     Velocity, ///< Velocity-control: Ignores the current position, target position, and velocity limits
 };
 
+/**
+ * @brief 多自由度同步方式枚举
+ *
+ * 决定多个自由度之间的同步行为。
+ * - Time：所有自由度同时到达目标（默认）
+ * - TimeIfNecessary：仅在必要时同步（目标速度或加速度非零时）
+ * - Phase：保持各自由度运动比例，产生直线运动
+ * - None：各自由度独立运行
+ */
 enum class Synchronization {
     Time, ///< Always synchronize the DoFs to reach the target at the same time (Default)
     TimeIfNecessary, ///< Synchronize only when necessary (e.g. for non-zero target velocity or acceleration)
@@ -26,6 +42,12 @@ enum class Synchronization {
     None, ///< Calculate every DoF independently
 };
 
+/**
+ * @brief 轨迹时长离散化方式枚举
+ *
+ * - Continuous：允许任意时长（默认）
+ * - Discrete：时长必须是控制周期整数倍
+ */
 enum class DurationDiscretization {
     Continuous, ///< Every trajectory synchronization duration is allowed (Default)
     Discrete, ///< The trajectory synchronization duration must be a multiple of the control cycle

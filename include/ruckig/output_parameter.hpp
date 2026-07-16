@@ -10,7 +10,18 @@
 
 namespace ruckig {
 
-//! Output of the Ruckig algorithm
+/**
+ * @brief Ruckig 算法的输出参数
+ *
+ * 每次调用 update() 后，输出参数包含新的运动学状态、
+ * 当前的轨迹对象、时间信息以及计算耗时。
+ *
+ * 关键方法：
+ *   - pass_to_input()：将当前输出状态复制到输入参数中，用于下一步迭代
+ *
+ * @tparam DOFs 自由度数量
+ * @tparam CustomVector 自定义向量类型
+ */
 template<size_t DOFs, template<class, size_t> class CustomVector = StandardVector>
 class OutputParameter {
     template<class T> using Vector = CustomVector<T, DOFs>;
@@ -76,12 +87,25 @@ public:
     }
 #endif
 
+    /**
+     * @brief 将当前输出状态传递给输入，为下一步迭代做准备
+     *
+     * 在控制循环中，每次 update() 后应调用此方法以更新当前状态：
+     * @code
+     * while (ruckig.update(input, output) == Result::Working) {
+     *     robot.set_target_positions(output.new_position);
+     *     output.pass_to_input(input); // 更新当前状态
+     * }
+     * @endcode
+     *
+     * 如果进入了新轨迹段，会自动删除第一个已完成的中间路径点。
+     */
     void pass_to_input(InputParameter<DOFs, CustomVector>& input) const {
         input.current_position = new_position;
         input.current_velocity = new_velocity;
         input.current_acceleration = new_acceleration;
 
-        // Remove first intermediate waypoint if section did change
+        // 如果进入了新轨迹段，移除已完成的那个中间路径点
         if (did_section_change && !input.intermediate_positions.empty()) {
             input.intermediate_positions.erase(input.intermediate_positions.begin());
         }

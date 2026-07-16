@@ -15,7 +15,11 @@
 
 namespace ruckig {
 
-//! Information about the position extrema
+/**
+ * @brief 位置极值信息
+ *
+ * 记录轨迹中位置的最小/最大值及其对应时间，用于位置约束检查。
+ */
 struct Bound {
     //! The extreme position
     double min, max;
@@ -25,9 +29,16 @@ struct Bound {
 };
 
 
-//! @brief A single-dof kinematic profile with position, velocity, acceleration and jerk
-//!
-//! The class members are only available in the Ruckig Community Version.
+/**
+ * @brief 单个自由度的运动学轮廓（Profile）
+ *
+ * 这是 Ruckig 最核心的数据结构，代表完整 p-v-a-j 轨迹。
+ * 轨迹由最多 7 个阶段组成，每段具有恒定加加速度。
+ *
+ * 阶段符号模式：
+ *   UDDU: +j, 0, -j, 0, -j, 0, +j（标准模式）
+ *   UDUD: +j, 0, -j, 0, +j, 0, -j
+ */
 class Profile {
     constexpr static double v_eps {1e-12};
     constexpr static double a_eps {1e-12};
@@ -44,14 +55,17 @@ public:
     std::array<double, 7> t, t_sum, j;
     std::array<double, 8> a, v, p;
 
-    //! Brake sub-profiles
+    //! 制动子轮廓（轨迹开始前的制动段）和加速子轮廓（轨迹结束后的加速段）
     BrakeProfile brake, accel;
 
-    //! Target (final) kinematic state
+    //! 目标（最终）运动学状态：位置、速度、加速度
     double pf, vf, af;
 
+    //! 轨迹达到的约束类型（ACC0: 加速段达 aMax, ACC1: 减速段达 aMin, VEL: 速度达 vMax 等）
     enum class ReachedLimits { ACC0_ACC1_VEL, VEL, ACC0, ACC1, ACC0_ACC1, ACC0_VEL, ACC1_VEL, NONE } limits;
+    //! 运动方向（UP: 正向, DOWN: 负向）
     enum class Direction { UP, DOWN } direction;
+    //! 加加速度控制符号序列（UDDU: 标准模式, UDUD: 非零目标加速度模式）
     enum class ControlSigns { UDDU, UDUD } control_signs;
 
 

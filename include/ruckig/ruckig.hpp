@@ -19,7 +19,30 @@
 
 namespace ruckig {
 
-//! Main interface for the Ruckig algorithm
+/**
+ * @brief Ruckig 算法的核心接口类
+ *
+ * 这是用户直接使用的入口类。提供两个核心操作：
+ *
+ * 1. calculate(): 一次性计算完整的轨迹对象（离线规划用）
+ * 2. update(): 在线实时更新轨迹，每次调用前进一个控制周期
+ *
+ * 典型使用方式（位置控制）：
+ * @code
+ * Ruckig<3> ruckig(0.01); // 3 自由度，10ms 控制周期
+ * InputParameter<3> input;
+ * OutputParameter<3> output;
+ * // 设置 input.current_position, target_position, max_velocity 等...
+ * while (ruckig.update(input, output) == Result::Working) {
+ *     // 使用 output.new_position 控制机器人
+ *     output.pass_to_input(input);
+ * }
+ * @endcode
+ *
+ * @tparam DOFs 自由度数量（0 = 运行时动态指定）
+ * @tparam CustomVector 自定义向量类型
+ * @tparam throw_error 是否在输入验证失败时抛出异常
+ */
 template<size_t DOFs = 0, template<class, size_t> class CustomVector = StandardVector, bool throw_error = false>
 class Ruckig {
     //! Current input, only for comparison for recalculation
@@ -101,7 +124,12 @@ public:
     }
 #endif
 
-    //! Reset the instance (e.g. to force a new calculation in the next update)
+    /**
+     * @brief 重置实例状态
+     *
+     * 调用后，下次 update() 将强制重新计算轨迹，
+     * 无论当前输入是否与上次计算时相同。
+     */
     void reset() {
         current_input_initialized = false;
     }
@@ -195,7 +223,15 @@ public:
         return true;
     }
 
-    //! Calculate a new trajectory for the given input
+    /**
+     * @brief 计算完整的轨迹（离线规划）
+     *
+     * 一次性计算从当前状态到目标状态的完整轨迹。
+     *
+     * @param input 输入参数（当前状态、目标、约束）
+     * @param trajectory [输出] 计算得到的完整轨迹
+     * @return Result::Working 成功，ErrorInvalidInput 输入无效
+     */
     Result calculate(const InputParameter<DOFs, CustomVector>& input, Trajectory<DOFs, CustomVector>& trajectory) {
         bool was_interrupted {false};
         return calculate(input, trajectory, was_interrupted);
@@ -210,7 +246,21 @@ public:
         return calculator.template calculate<throw_error>(input, trajectory, delta_time, was_interrupted);
     }
 
-    //! Get the next output state (with step delta_time) along the calculated trajectory for the given input
+    /**
+     * @brief 在线更新轨迹，获取下一控制周期的目标状态
+     *
+     * 这是 Ruckig 的核心在线接口。每次调用：
+     *   1. 如果输入发生变化，重新计算轨迹
+     *   2. 沿当前轨迹前进 delta_time
+     *   3. 获取新的运动学状态
+     *   4. 更新输出参数
+     *
+     * @param input 输入参数
+     * @param output [输出] 包含新的状态和轨迹信息
+     * @return Result::Working 仍在运动
+     * @return Result::Finished 已到达目标
+     * @return Result::ErrorInvalidInput 输入无效
+     */
     Result update(const InputParameter<DOFs, CustomVector>& input, OutputParameter<DOFs, CustomVector>& output) {
         const auto start = std::chrono::steady_clock::now();
 

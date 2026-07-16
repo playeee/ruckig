@@ -20,7 +20,20 @@
 
 namespace ruckig {
 
-//! Calculation class for a state-to-state trajectory.
+/**
+ * @brief 状态到状态轨迹计算器
+ *
+ * 这是 Ruckig 两步法算法的调度核心，负责：
+ *
+ * 1. Step 1（极值时间计算）：为每个自由度独立计算最短时间
+ * 2. 同步（Synchronization）：寻找统一的同步时间
+ * 3. Step 2（时间重计算）：为每个自由度重算轨迹轮廓
+ *
+ * 此外还处理制动轨迹、相位同步、离散时长等高级功能。
+ *
+ * @tparam DOFs 自由度数量
+ * @tparam CustomVector 自定义向量类型
+ */
 template<size_t DOFs, template<class, size_t> class CustomVector = StandardVector>
 class TargetCalculator {
 private:
@@ -221,7 +234,22 @@ public:
         idx.resize(3*dofs+1);
     }
 
-    //! Calculate the time-optimal waypoint-based trajectory
+    /**
+     * @brief 执行完整的两步法轨迹计算
+     *
+     * 流程：
+     *   1. 初始化每个自由度的制动轨迹和边界条件
+     *   2. Step 1：为每个自由度计算时间最优轮廓
+     *   3. 多自由度时间同步，寻找统一的同步时间
+     *   4. 相位同步（可选）：保持各自由度运动比例
+     *   5. Step 2：为每个自由度重新计算给定同步时间下的轮廓
+     *
+     * @param inp 输入参数
+     * @param traj [输出] 计算得到的轨迹
+     * @param delta_time 控制周期
+     * @param was_interrupted [输出] 计算是否被中断
+     * @return Result 计算结果
+     */
     template<bool throw_error>
     Result calculate(const InputParameter<DOFs, CustomVector>& inp, Trajectory<DOFs, CustomVector>& traj, double delta_time, bool& was_interrupted) {
         was_interrupted = false;

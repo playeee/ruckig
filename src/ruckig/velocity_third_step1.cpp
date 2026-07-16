@@ -4,14 +4,32 @@
 
 namespace ruckig {
 
+/**
+ * @brief 三阶速度接口 Step 1 构造函数
+ *
+ * 三阶速度接口考虑加加速度约束和加速度约束。
+ * 与位置接口的区别在于不包含位置约束，仅关注速度变化 vd = vf - v0。
+ *
+ * 轨迹可以是三段式（ACC0：加速→匀速→减速）或两段式（NONE：加速→减速）。
+ */
 VelocityThirdOrderStep1::VelocityThirdOrderStep1(double v0, double a0, double vf, double af, double aMax, double aMin, double jMax): a0(a0), af(af), _aMax(aMax), _aMin(aMin), _jMax(jMax) {
     vd = vf - v0;
 }
 
+/**
+ * @brief 计算 ACC0 类型轮廓（达到加速度上限）
+ *
+ * 三段式加加速度轮廓：
+ *   阶段 0: +jMax 增加加速度到 aMax
+ *   阶段 1: 保持恒定加速度 aMax（匀变速度段）
+ *   阶段 2: -jMax 降低加速度到目标值
+ *
+ * 各阶段时间由运动学公式推导得出。
+ */
 void VelocityThirdOrderStep1::time_acc0(ProfileIter& profile, double aMax, double aMin, double jMax, bool) const {
-    profile->t[0] = (-a0 + aMax)/jMax;
-    profile->t[1] = (a0*a0 + af*af)/(2*aMax*jMax) - aMax/jMax + vd/aMax;
-    profile->t[2] = (-af + aMax)/jMax;
+    profile->t[0] = (-a0 + aMax)/jMax;           // 加速到 aMax 的时间
+    profile->t[1] = (a0*a0 + af*af)/(2*aMax*jMax) - aMax/jMax + vd/aMax;  // 匀加速度段时间
+    profile->t[2] = (-af + aMax)/jMax;           // 减速到目标加速度的时间
     profile->t[3] = 0;
     profile->t[4] = 0;
     profile->t[5] = 0;
@@ -22,12 +40,20 @@ void VelocityThirdOrderStep1::time_acc0(ProfileIter& profile, double aMax, doubl
     }
 }
 
+/**
+ * @brief 计算 NONE 类型轮廓（未达到加速度极限）
+ *
+ * 两段式：先以 +jMax 改变加速度，然后以 -jMax 回到目标加速度。
+ * 峰值加速度通过求解二次方程确定。
+ *
+ * 对应三角形加加速度轮廓。
+ */
 void VelocityThirdOrderStep1::time_none(ProfileIter& profile, double aMax, double aMin, double jMax, bool return_after_found) const {
     double h1 = (a0*a0 + af*af)/2 + jMax*vd;
     if (h1 >= 0.0) {
         h1 = std::sqrt(h1);
 
-        // Solution 1
+        // 解 1：先加后减
         {
             profile->t[0] = -(a0 + h1)/jMax;
             profile->t[1] = 0;
@@ -39,13 +65,11 @@ void VelocityThirdOrderStep1::time_none(ProfileIter& profile, double aMax, doubl
 
             if (profile->check_for_velocity<ControlSigns::UDDU, ReachedLimits::NONE>(jMax, aMax, aMin)) {
                 add_profile(profile);
-                if (return_after_found) {
-                    return;
-                }
+                if (return_after_found) return;
             }
         }
 
-        // Solution 2
+        // 解 2：先减后加（少见）
         {
             profile->t[0] = (-a0 + h1)/jMax;
             profile->t[1] = 0;
@@ -62,6 +86,12 @@ void VelocityThirdOrderStep1::time_none(ProfileIter& profile, double aMax, doubl
     }
 }
 
+/**
+ * @brief 零限制特殊情况：单段轨迹
+ *
+ * 当 jMax = 0 时，仅当起始和结束加速度相同才有意义。
+ * 轮廓为一段匀变速运动。
+ */
 bool VelocityThirdOrderStep1::time_all_single_step(Profile* profile, double aMax, double aMin, double) const {
     if (std::abs(af - a0) > DBL_EPSILON) {
         return false;
@@ -90,9 +120,12 @@ bool VelocityThirdOrderStep1::time_all_single_step(Profile* profile, double aMax
     return false;
 }
 
-
+/**
+ * @brief 入口函数：计算所有可能的极值轨迹轮廓
+ *
+ * 与位置接口类似，尝试两种方向（正向/反向）的两种轮廓（ACC0/NONE）。
+ */
 bool VelocityThirdOrderStep1::get_profile(const Profile& input, Block& block) {
-    // Zero-limits special case
     if (_jMax == 0.0) {
         auto& p = block.p_min;
         p.set_boundary(input);
@@ -112,7 +145,6 @@ bool VelocityThirdOrderStep1::get_profile(const Profile& input, Block& block) {
     profile->set_boundary(input);
 
     if (std::abs(af) < DBL_EPSILON) {
-        // There is no blocked interval when af==0, so return after first found profile
         const double aMax = (vd >= 0) ? _aMax : _aMin;
         const double aMin = (vd >= 0) ? _aMin : _aMax;
         const double jMax = (vd >= 0) ? _jMax : -_jMax;
